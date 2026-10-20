@@ -1,0 +1,25 @@
+# Build
+build/
+.gradle/
+out/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime data
+run/
+logs/
+*.log
+
+# Secrets - никогда не коммитить
+.env
+config-local.yml
