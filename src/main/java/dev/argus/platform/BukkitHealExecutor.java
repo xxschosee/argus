@@ -53,7 +53,7 @@ public final class BukkitHealExecutor implements HealExecutor {
     private boolean trimMemory() {
         long before = usedHeap();
         System.gc();
-        logger.info("[Argus] Принудительная сборка мусора: куча "
+        logger.info("Принудительная сборка мусора: куча "
                 + (before / 1024 / 1024) + " МБ -> " + (usedHeap() / 1024 / 1024) + " МБ");
         return true;
     }
@@ -61,20 +61,20 @@ public final class BukkitHealExecutor implements HealExecutor {
     private boolean unloadChunk(String target) {
         ChunkRef ref = ChunkRef.parse(target);
         if (ref == null) {
-            logger.warning("[Argus] Не удалось разобрать цель выгрузки: " + target);
+            logger.warning("Не удалось разобрать цель выгрузки: " + target);
             return false;
         }
         World world = Bukkit.getWorld(ref.world());
         if (world == null) {
-            logger.warning("[Argus] Мир не найден: " + ref.world());
+            logger.warning("Мир не найден: " + ref.world());
             return false;
         }
         // unloadChunkRequest уважает присутствие игроков и не выгружает чанк насильно
         boolean requested = world.unloadChunkRequest(ref.x(), ref.z());
         if (requested) {
-            logger.info("[Argus] Запрошена выгрузка чанка " + ref.shortName());
+            logger.info("Запрошена выгрузка чанка " + ref.shortName());
         } else {
-            logger.warning("[Argus] Сервер отклонил выгрузку чанка " + ref.shortName());
+            logger.warning("Сервер отклонил выгрузку чанка " + ref.shortName());
         }
         return requested;
     }
@@ -82,7 +82,7 @@ public final class BukkitHealExecutor implements HealExecutor {
     private boolean removeEntities(String target) {
         ChunkRef ref = ChunkRef.parse(target);
         if (ref == null) {
-            logger.warning("[Argus] Не удалось разобрать цель очистки: " + target);
+            logger.warning("Не удалось разобрать цель очистки: " + target);
             return false;
         }
         World world = Bukkit.getWorld(ref.world());
@@ -103,7 +103,7 @@ public final class BukkitHealExecutor implements HealExecutor {
                 removed++;
             }
         }
-        logger.info("[Argus] Удалено сущностей в " + ref.shortName() + ": " + removed);
+        logger.info("Удалено сущностей в " + ref.shortName() + ": " + removed);
         return true;
     }
 
@@ -118,19 +118,19 @@ public final class BukkitHealExecutor implements HealExecutor {
         if (changed == 0) {
             return false;
         }
-        logger.warning("[Argus] Автосохранение отключено в " + changed + " мирах на "
+        logger.warning("Автосохранение отключено в " + changed + " мирах на "
                 + (autosaveRestoreTicks / 20) + " с");
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             for (World world : Bukkit.getWorlds()) {
                 world.setAutoSave(true);
             }
-            logger.info("[Argus] Автосохранение включено обратно");
+            logger.info("Автосохранение включено обратно");
         }, autosaveRestoreTicks);
         return true;
     }
 
     private boolean unsupported(HealAction action, String reason) {
-        logger.warning("[Argus] Действие " + action.kind().key() + " не поддержано: " + reason);
+        logger.warning("Действие " + action.kind().key() + " не поддержано: " + reason);
         return false;
     }
 

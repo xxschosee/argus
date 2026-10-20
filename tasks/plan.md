@@ -101,8 +101,12 @@ panel (Pterodactyl)  ──►  уведомления с кнопками  ─�
 | Ядро компилируется без Bukkit | `grep -r "org.bukkit" src/main/java/dev/argus/core` → пусто | ✅ |
 | Юнит-тесты проходят | `./gradlew test` | ✅ 52 теста |
 | JAR собирается | `./gradlew build` | ✅ 60 КБ |
-| Вёрстка плагина валидна | `./scripts/validate-plugin-layout.sh` | ✅ |
-| Плагин грузится на Paper 1.21.x | ручной прогон на сервере | ⏳ не проверено |
-| Искусственный лаг вызывает алерт и лечение | ручной прогон | ⏳ не проверено |
+| Вёрстка плагина валидна | `node scripts/validate-plugin-layout.mjs` | ✅ 0 ошибок |
+| Плагин грузится на Paper 1.21.x | `scripts/smoke-test.sh`, шаг 2 | ✅ Argus v0.1.0-SNAPSHOT включился |
+| Искусственный лаг вызывает алерт и лечение | `scripts/smoke-test.sh`, шаги 5–7 | ✅ пойманы tps_degraded, high_mspt, heap_pressure, chunk_overload, entity_overload |
+| Виновный чанк находится | `scripts/smoke-test.sh`, шаг 6 | ✅ world:0,0 и world:-1,-1 |
+| Событие восстановления приходит | `scripts/smoke-test.sh`, шаг 9 | ✅ «Проблема ушла» |
+| Токен Telegram реально доставляет | ручной прогон с ботом | ⏳ нужен токен |
+| GitHub Actions | первый PR | ⏳ нужен репозиторий |
 
 Последние две точки требуют живого сервера — это следующий шаг после ревью кода.

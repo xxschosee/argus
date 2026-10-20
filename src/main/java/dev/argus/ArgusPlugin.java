@@ -95,6 +95,14 @@ public final class ArgusPlugin extends JavaPlugin {
         long period = Math.max(20L, getConfig().getLong("sample.interval_ticks", 100L));
         scheduler.runGlobalTimer(this::tick, period, period);
 
+        // Первый замер сразу: чтобы /argus status отвечал уже через секунду после старта,
+        // а не после первого интервала.
+        try {
+            lastSnapshot = collector.capture();
+        } catch (Exception e) {
+            getLogger().log(Level.WARNING, "Не удалось снять первые метрики", e);
+        }
+
         getLogger().info("Argus запущен. Пороги: " + describeThresholds()
                 + " | уведомления: " + notifier.name()
                 + " | планировщик: " + scheduler.name());
@@ -117,7 +125,7 @@ public final class ArgusPlugin extends JavaPlugin {
         try {
             snapshot = collector.capture();
         } catch (Exception e) {
-            getLogger().log(Level.WARNING, "[Argus] Не удалось снять метрики", e);
+            getLogger().log(Level.WARNING, "Не удалось снять метрики", e);
             return;
         }
         lastSnapshot = snapshot;
@@ -133,12 +141,12 @@ public final class ArgusPlugin extends JavaPlugin {
         incidentLog.record(diagnosis, System.currentTimeMillis());
 
         if (diagnosis.resolved()) {
-            getLogger().info("[Argus] Проблема ушла: " + diagnosis.cause().key());
+            getLogger().info("Проблема ушла: " + diagnosis.cause().key());
             notifyAsync(diagnosis, List.of());
             return;
         }
 
-        getLogger().warning("[Argus] " + diagnosis.severity() + " " + diagnosis.cause().key()
+        getLogger().warning("" + diagnosis.severity() + " " + diagnosis.cause().key()
                 + " — " + diagnosis.summary());
 
         List<HealAction> performed = applyPlan(diagnosis, null);
@@ -162,7 +170,7 @@ public final class ArgusPlugin extends JavaPlugin {
                     performed.add(action);
                 }
             } catch (Exception e) {
-                getLogger().log(Level.WARNING, "[Argus] Действие " + action.kind().key() + " не удалось", e);
+                getLogger().log(Level.WARNING, "Действие " + action.kind().key() + " не удалось", e);
             }
         }
         return performed;
@@ -186,12 +194,12 @@ public final class ArgusPlugin extends JavaPlugin {
         pendingDiagnosis = null;
         HotChunk worst = result.worst();
         if (worst == null) {
-            getLogger().info("[Argus] Явного виновника не нашлось (просканировано чанков: " + result.scanned() + ")");
+            getLogger().info("Явного виновника не нашлось (просканировано чанков: " + result.scanned() + ")");
             notifier.info(diagnosisText(diagnosis) + " Явного виновника не нашлось.");
             return;
         }
 
-        getLogger().info("[Argus] Виновник: " + worst.shortName()
+        getLogger().info("Виновник: " + worst.shortName()
                 + " (сущностей " + worst.entityCount() + ", блочных " + worst.blockEntityCount() + ")");
 
         List<HealAction> performed = applyPlan(diagnosis, worst.target());

@@ -26,13 +26,13 @@ public interface Notifier {
         return new Notifier() {
             @Override
             public void notify(Diagnosis diagnosis, List<HealAction> performed) {
-                logger.warning("[Argus] " + diagnosis.cause().key() + " / " + diagnosis.severity()
+                logger.warning("" + diagnosis.cause().key() + " / " + diagnosis.severity()
                         + " — " + diagnosis.summary() + (performed.isEmpty() ? "" : " / actions=" + performed.size()));
             }
 
             @Override
             public void info(String message) {
-                logger.info("[Argus] " + message);
+                logger.info("" + message);
             }
 
             @Override

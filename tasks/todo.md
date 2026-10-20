@@ -76,10 +76,10 @@
   - Verify: ревью
   - Files: `README.md`, `LICENSE`, `CONTRIBUTING.md`, `CHANGELOG.md`
 
-- [ ] **Задача: Проверка на живом Paper-сервере**
+- [x] **Задача: Проверка на живом Paper-сервере**
   - Acceptance: плагин грузится без ошибок; `/argus status` показывает реальные цифры; искусственная лаг-ферма вызывает алерт и лечение; в логе нет исключений
-  - Verify: ручной прогон на Paper 1.21.x с лаг-фермой (TNT/редстоун), скриншоты
-  - Files: —
+  - Verify: `scripts/smoke-test.sh` — 9 проверок, все зелёные. Сервер Paper 1.21.11 локально, нагрузка через `/forceload` + 45 свиней
+  - Files: `scripts/smoke-test.sh`, `tools/rcon.py`, `tools/loggrep.py`
 
 - [ ] **Задача: CI на сборку и тесты**
   - Acceptance: GitHub Actions собирает JAR и гоняет тесты на каждом PR; артефакт доступен для скачивания

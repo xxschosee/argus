@@ -61,12 +61,12 @@ public final class TelegramClient {
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
             boolean ok = response.statusCode() == 200 && response.body().contains("\"ok\":true");
             if (!ok) {
-                logger.warning("[Argus] Telegram отклонил сообщение: HTTP " + response.statusCode()
+                logger.warning("Telegram отклонил сообщение: HTTP " + response.statusCode()
                         + " " + truncate(response.body(), 200));
             }
             return ok;
         } catch (IOException e) {
-            logger.log(Level.WARNING, "[Argus] Ошибка отправки в Telegram", e);
+            logger.log(Level.WARNING, "Ошибка отправки в Telegram", e);
             return false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
