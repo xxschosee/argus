@@ -119,8 +119,8 @@ Destructive actions are **not** in the default policy. Enable them deliberately.
 
 ## Design notes
 
-- The core (`com.xxschosee.argus.core`) has **zero** Bukkit imports, so all decision logic is
-  covered by plain unit tests that run in seconds without a server.
+- The core (`com.xxschosee.argus.core`) has **zero** Bukkit imports, so the decision
+  logic stays readable on its own and does not get tangled with server calls.
 - The Telegram client uses the JDK's own HTTP client. **No runtime dependencies.**
 - One alarm per incident, not one per sample. A single spike never triggers it.
 - The chunk scan has a hard per-tick budget, so Argus cannot become the lag.
@@ -129,18 +129,14 @@ Destructive actions are **not** in the default policy. Enable them deliberately.
 
 ```bash
 ./gradlew build        # JAR lands in build/libs/
-./gradlew test         # unit tests
 ./scripts/validate-plugin-layout.sh   # descriptor and layout checks
 ```
 
 Requires JDK 21. The Gradle wrapper is included.
 
-The smoke test drives a real Paper server through RCON, generates load and checks the
-whole chain end to end:
-
-```bash
-bash scripts/smoke-test.sh
-```
+Changes are checked on a real server: `scripts/smoke-test.sh` boots Paper, generates
+load and walks through the whole chain — detection, culprit search, incident log,
+recovery.
 
 Further reading: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit
 together and why, [docs/ROADMAP.md](docs/ROADMAP.md) for what is next.

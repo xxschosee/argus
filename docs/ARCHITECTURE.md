@@ -1,7 +1,7 @@
 # Architecture
 
-Three layers, one direction of dependencies. The point of the split is testability:
-everything that decides *what* to do lives in a layer that has never heard of Bukkit.
+Three layers, one direction of dependencies. The point of the split is that the part
+which decides *what* to do never has to deal with the server.
 
 ```
 core/          metrics -> diagnosis -> healer
@@ -82,20 +82,22 @@ Two languages are supported (`notify.language: ru | en`). The Russian one is the
 default because that is where the plugin comes from; English is there because
 Modrinth is international.
 
-## Testing
+## Checking a change
 
-52 unit tests, all in `core` and `notify`, no server required:
+There is no test suite. Everything is verified on a real Paper server, because that is
+the only place where the interesting behaviour lives — TPS, tick time and entity counts
+are properties of a running server, not of a function call.
 
-```bash
-./gradlew test
-```
-
-The smoke test drives a real Paper 1.21.11 server through RCON, generates load, and
-asserts the whole chain: detection, culprit search, incident log, recovery.
+`scripts/smoke-test.sh` does this in one command: it boots Paper 1.21.11, applies
+aggressive thresholds, creates load through `/forceload` and a pile of entities, and
+walks the whole chain — detection, culprit search, incident log, recovery.
 
 ```bash
 bash scripts/smoke-test.sh
 ```
+
+For anything smaller, a manual round is usually enough: drop the JAR in `plugins/`,
+start the server, watch `/argus status` while a farm runs in the background.
 
 ## Things that turned out differently than planned
 

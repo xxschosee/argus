@@ -10,7 +10,7 @@ Ordered by what unblocks the most people, not by how interesting it is to build.
 - Budgeted search for the guilty chunk
 - Telegram alerts, RU and EN
 - `/argus status|history|scan|reload`
-- 52 unit tests, a live-server smoke test, GitHub Actions build
+- A live-server smoke test and a GitHub Actions build
 
 ## Next
 

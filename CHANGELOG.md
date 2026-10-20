@@ -26,7 +26,6 @@ fixes what it can, and tells the admin in Telegram.
 - **`/argus`** — `status`, `history`, `scan`, `reload`.
 - **Configurable thresholds** — all in `config.yml`, reloaded without a restart.
 - **In-memory incident log** — the last 50 events, visible via `/argus history`.
-- **Unit tests** — 52 tests over the decision core, with no server required.
 
 ### Known limitations
 

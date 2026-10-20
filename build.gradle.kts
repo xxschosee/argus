@@ -12,9 +12,6 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
-
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 java {
@@ -26,13 +23,6 @@ tasks {
     processResources {
         filesMatching(listOf("plugin.yml")) {
             expand("version" to project.version)
-        }
-    }
-    test {
-        useJUnitPlatform()
-        testLogging {
-            events("passed", "failed", "skipped")
-            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
         }
     }
 }
