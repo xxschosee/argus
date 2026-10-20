@@ -9,6 +9,7 @@ import com.xxschosee.argus.core.HotChunk;
 import com.xxschosee.argus.core.HotSpotScanner;
 import com.xxschosee.argus.core.IncidentLog;
 import com.xxschosee.argus.core.MetricsSnapshot;
+import com.xxschosee.argus.core.PluginProfiler;
 import com.xxschosee.argus.core.Thresholds;
 import com.xxschosee.argus.core.TickTimer;
 import com.xxschosee.argus.notify.Notifier;
@@ -19,11 +20,14 @@ import com.xxschosee.argus.platform.BukkitChunkSource;
 import com.xxschosee.argus.platform.BukkitHealExecutor;
 import com.xxschosee.argus.platform.BukkitMetricsCollector;
 import com.xxschosee.argus.platform.HealExecutor;
+import com.xxschosee.argus.platform.MainThreadSampler;
 import com.xxschosee.argus.platform.MetricsCollector;
+import com.xxschosee.argus.platform.PluginOwnership;
 import com.xxschosee.argus.platform.SchedulerFacade;
 import com.xxschosee.argus.platform.TickListener;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +47,8 @@ public final class ArgusPlugin extends JavaPlugin {
     private Notifier notifier;
     private Thresholds thresholds;
     private TickTimer tickTimer;
+    private PluginProfiler profiler;
+    private MainThreadSampler sampler;
 
     private volatile MetricsSnapshot lastSnapshot;
 
@@ -71,7 +77,8 @@ public final class ArgusPlugin extends JavaPlugin {
 
         scheduler = new SchedulerFacade.Bukkit(this);
         tickTimer = new TickTimer(getConfig().getInt("sample.tick_window", 240));
-        getServer().getPluginManager().registerEvents(new TickListener(tickTimer), this);
+        TickListener tickListener = new TickListener(tickTimer);
+        getServer().getPluginManager().registerEvents(tickListener, this);
         collector = new BukkitMetricsCollector(getServer(), tickTimer, thresholds.tickBudgetMs());
         engine = new DiagnosisEngine(thresholds);
         healer = readHealPolicy();
@@ -84,6 +91,12 @@ public final class ArgusPlugin extends JavaPlugin {
                 getLogger(),
                 getConfig().getLong("healer.autosave_restore_ticks", 1200L));
         notifier = buildNotifier();
+
+        profiler = new PluginProfiler(getConfig().getLong("sampler.window_seconds", 300L));
+        PluginOwnership ownership = new PluginOwnership(
+                Arrays.asList(getServer().getPluginManager().getPlugins()));
+        sampler = new MainThreadSampler(tickListener::mainThread, ownership, profiler);
+        sampler.start(getConfig().getLong("sampler.interval_ms", 100L));
 
         startedAtMillis = System.currentTimeMillis();
         startupGraceMillis = getConfig().getLong("startup_grace_seconds", 60L) * 1000L;
@@ -107,6 +120,9 @@ public final class ArgusPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (sampler != null) {
+            sampler.stop();
+        }
         if (scheduler != null) {
             scheduler.cancelAll();
         }
@@ -204,7 +220,25 @@ public final class ArgusPlugin extends JavaPlugin {
         List<HealAction> performed = applyPlan(diagnosis, worst.target());
 
         notifier.info(diagnosisText(diagnosis)
-                + " Виновник: " + worst.shortName() + " (" + worst.describe() + ")");
+                + " Виновник: " + worst.shortName() + " (" + worst.describe() + ")"
+                + " | Кто занимает время: " + topPlugins(3));
+    }
+
+    /** Кто занимает время сервера, в процентах от окна наблюдения. */
+    public String topPlugins(int count) {
+        Map<String, Double> distribution = profiler.distribution();
+        if (distribution.isEmpty()) {
+            return "нет данных";
+        }
+        List<String> parts = new ArrayList<>();
+        int i = 0;
+        for (Map.Entry<String, Double> entry : distribution.entrySet()) {
+            if (i++ >= count) {
+                break;
+            }
+            parts.add(entry.getKey() + " " + Math.round(entry.getValue()) + "%");
+        }
+        return String.join(", ", parts);
     }
 
     private void notifyAsync(Diagnosis diagnosis, List<HealAction> performed) {
@@ -299,6 +333,14 @@ public final class ArgusPlugin extends JavaPlugin {
 
     public Notifier notifier() {
         return notifier;
+    }
+
+    public PluginProfiler profiler() {
+        return profiler;
+    }
+
+    public TickTimer tickTimer() {
+        return tickTimer;
     }
 
     public SchedulerFacade scheduler() {

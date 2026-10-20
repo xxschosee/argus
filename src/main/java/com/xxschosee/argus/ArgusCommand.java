@@ -9,6 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -22,7 +23,7 @@ public final class ArgusCommand implements CommandExecutor, TabCompleter {
     private static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("dd.MM HH:mm:ss", Locale.ROOT).withZone(ZoneId.systemDefault());
 
-    private static final List<String> SUBCOMMANDS = List.of("status", "history", "scan", "reload");
+    private static final List<String> SUBCOMMANDS = List.of("status", "history", "plugins", "scan", "reload");
 
     private final ArgusPlugin plugin;
 
@@ -45,6 +46,7 @@ public final class ArgusCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "status" -> status(sender);
             case "history" -> history(sender);
+            case "plugins" -> plugins(sender);
             case "scan" -> scan(sender);
             case "reload" -> reload(sender);
             default -> sender.sendMessage("Неизвестный подкоманд: " + args[0]);
@@ -63,7 +65,8 @@ public final class ArgusCommand implements CommandExecutor, TabCompleter {
                 + " §7(5м " + fmt(snapshot.tps5m()) + ", 15м " + fmt(snapshot.tps15m()) + ")");
         sender.sendMessage("§7Время тика: §f" + fmt(snapshot.mspt()) + " мс");
         sender.sendMessage("§7Худший тик: §f" + fmt(snapshot.worstTickMs()) + " мс"
-                + " §7(p99 " + fmt(snapshot.p99TickMs()) + " мс, всплесков " + snapshot.ticksOverBudget() + ")");
+                + " §7(p99 " + fmt(snapshot.p99TickMs()) + " мс, средний "
+                + fmt(plugin.tickTimer().averageMs()) + " мс, всплесков " + snapshot.ticksOverBudget() + ")");
         sender.sendMessage("§7Куча: §f" + (snapshot.heapUsedBytes() / 1024 / 1024) + " / "
                 + (snapshot.heapMaxBytes() / 1024 / 1024) + " МБ"
                 + " §7(" + Math.round(snapshot.heapRatio() * 100) + "%)");
@@ -111,6 +114,24 @@ public final class ArgusCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§aКонфиг перечитан, пороги применены.");
         } catch (IllegalArgumentException e) {
             sender.sendMessage("§cКонфиг некорректен: " + e.getMessage());
+        }
+    }
+
+    private void plugins(CommandSender sender) {
+        Map<String, Double> distribution = plugin.profiler().distribution();
+        if (distribution.isEmpty()) {
+            sender.sendMessage("§7Пока нет образцов, подожди немного.");
+            return;
+        }
+        sender.sendMessage("§6§l— кто занимает время (" + plugin.profiler().sampleCount() + " образцов)");
+        int i = 0;
+        for (Map.Entry<String, Double> entry : distribution.entrySet()) {
+            if (i++ >= 10) {
+                break;
+            }
+            String bar = "#".repeat(Math.min(20, (int) Math.round(entry.getValue() / 5.0)));
+            sender.sendMessage("§f" + entry.getKey() + " §7" + Math.round(entry.getValue()) + "% "
+                    + "§8" + bar);
         }
     }
 
