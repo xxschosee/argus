@@ -41,7 +41,7 @@ small budgeted steps — so the scan never becomes the lag it was looking for.
 ## Install
 
 1. Download the JAR from [Modrinth](https://modrinth.com/plugin/argus) or
-   [releases](https://github.com/argus-mc/argus/releases).
+   [releases](https://github.com/xxschosee/argus/releases).
 2. Drop it into `plugins/`.
 3. Start the server. It works out of the box — without Telegram it just logs.
 
@@ -134,6 +134,16 @@ Destructive actions are **not** in the default policy. Enable them deliberately.
 ```
 
 Requires JDK 21. The Gradle wrapper is included.
+
+The smoke test drives a real Paper server through RCON, generates load and checks the
+whole chain end to end:
+
+```bash
+bash scripts/smoke-test.sh
+```
+
+Further reading: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit
+together and why, [docs/ROADMAP.md](docs/ROADMAP.md) for what is next.
 
 ## Contributing
 

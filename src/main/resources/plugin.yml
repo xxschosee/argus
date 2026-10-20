@@ -1,9 +1,9 @@
 name: Argus
 version: "${version}"
-main: dev.argus.ArgusPlugin
+main: com.xxschosee.argus.ArgusPlugin
 description: Watchdog and auto-healer for Paper servers - finds the cause of lag, fixes it and reports to Telegram.
-author: Argus contributors
-website: https://github.com/argus-mc/argus
+author: xxschosee
+website: https://github.com/xxschosee/argus
 api-version: '1.21'
 load: POSTWORLD
 commands:

@@ -21,7 +21,7 @@ java minecraft-plugin server-utility optimizer folia
 **Команды:**
 
 ```bash
-git remote add origin https://github.com/<ТВОЙ_НИК>/argus.git
+git remote add origin https://github.com/xxschosee/argus.git
 git push -u origin main
 ```
 
@@ -40,7 +40,7 @@ git push -u origin main
 | Client side | No |
 | Server side | Yes |
 | License | `MIT` |
-| Source URL | `https://github.com/<ТВОЙ_НИК>/argus` |
+| Source URL | `https://github.com/xxschosee/argus` |
 | Loader | `paper`, `purpur` |
 | Game versions | `1.21`, `1.21.1` … `1.21.11` |
 | First version | `0.1.0` |
@@ -143,7 +143,7 @@ thresholds:
 
 ## Исходный код
 
-MIT. Полностью открытый: <https://github.com/<ТВОЙ_НИК>/argus>
+MIT. Полностью открытый: <https://github.com/xxschosee/argus>
 ```
 
 ## 3. Страница GitHub: что ещё положить

@@ -2,7 +2,7 @@ plugins {
     java
 }
 
-group = "dev.argus"
+group = "com.xxschosee"
 version = "0.1.0-SNAPSHOT"
 
 repositories {
@@ -33,16 +33,6 @@ tasks {
         testLogging {
             events("passed", "failed", "skipped")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
-        }
-    }
-}
-
-// Prints (and downloads) the resolved compile classpath - handy for API archaeology.
-tasks.register("resolveAll") {
-    notCompatibleWithConfigurationCache("prints files at execution time")
-    doLast {
-        configurations.compileClasspath.get().resolvedConfiguration.resolvedArtifacts.forEach {
-            println(it.file.absolutePath)
         }
     }
 }
