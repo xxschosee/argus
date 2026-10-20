@@ -3,8 +3,6 @@ plugins {
 }
 
 group = "com.xxschosee"
-
-// Версию релиза задаём при сборке: ./gradlew build -Pversion=0.1.0
 version = providers.gradleProperty("version").orElse("0.1.0-SNAPSHOT").get()
 
 repositories {
