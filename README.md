@@ -119,7 +119,7 @@ Destructive actions are **not** in the default policy. Enable them deliberately.
 
 ## Design notes
 
-- The core (`dev.argus.core`) has **zero** Bukkit imports, so all decision logic is
+- The core (`com.xxschosee.argus.core`) has **zero** Bukkit imports, so all decision logic is
   covered by plain unit tests that run in seconds without a server.
 - The Telegram client uses the JDK's own HTTP client. **No runtime dependencies.**
 - One alarm per incident, not one per sample. A single spike never triggers it.
