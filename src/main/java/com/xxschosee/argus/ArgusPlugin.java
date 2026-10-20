@@ -1,15 +1,16 @@
 package com.xxschosee.argus;
 
+import com.xxschosee.argus.core.ChunkChurn;
 import com.xxschosee.argus.core.Cause;
 import com.xxschosee.argus.core.Diagnosis;
 import com.xxschosee.argus.core.DiagnosisEngine;
+import com.xxschosee.argus.core.GcStats;
 import com.xxschosee.argus.core.HealAction;
 import com.xxschosee.argus.core.HealEngine;
 import com.xxschosee.argus.core.HotChunk;
 import com.xxschosee.argus.core.HotSpotScanner;
 import com.xxschosee.argus.core.IncidentLog;
 import com.xxschosee.argus.core.MetricsSnapshot;
-import com.xxschosee.argus.core.PluginProfiler;
 import com.xxschosee.argus.core.Thresholds;
 import com.xxschosee.argus.core.TickTimer;
 import com.xxschosee.argus.notify.Notifier;
@@ -19,15 +20,14 @@ import com.xxschosee.argus.notify.TelegramNotifier;
 import com.xxschosee.argus.platform.BukkitChunkSource;
 import com.xxschosee.argus.platform.BukkitHealExecutor;
 import com.xxschosee.argus.platform.BukkitMetricsCollector;
+import com.xxschosee.argus.platform.ChunkDetails;
+import com.xxschosee.argus.platform.ChunkListener;
 import com.xxschosee.argus.platform.HealExecutor;
-import com.xxschosee.argus.platform.MainThreadSampler;
 import com.xxschosee.argus.platform.MetricsCollector;
-import com.xxschosee.argus.platform.PluginOwnership;
 import com.xxschosee.argus.platform.SchedulerFacade;
 import com.xxschosee.argus.platform.TickListener;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -47,8 +47,8 @@ public final class ArgusPlugin extends JavaPlugin {
     private Notifier notifier;
     private Thresholds thresholds;
     private TickTimer tickTimer;
-    private PluginProfiler profiler;
-    private MainThreadSampler sampler;
+    private GcStats gcStats;
+    private ChunkChurn chunkChurn;
 
     private volatile MetricsSnapshot lastSnapshot;
 
@@ -92,11 +92,9 @@ public final class ArgusPlugin extends JavaPlugin {
                 getConfig().getLong("healer.autosave_restore_ticks", 1200L));
         notifier = buildNotifier();
 
-        profiler = new PluginProfiler(getConfig().getLong("sampler.window_seconds", 300L));
-        PluginOwnership ownership = new PluginOwnership(
-                Arrays.asList(getServer().getPluginManager().getPlugins()));
-        sampler = new MainThreadSampler(tickListener::mainThread, ownership, profiler);
-        sampler.start(getConfig().getLong("sampler.interval_ms", 100L));
+        gcStats = new GcStats(getConfig().getLong("sample.interval_ticks", 100L) / 20.0);
+        chunkChurn = new ChunkChurn();
+        getServer().getPluginManager().registerEvents(new ChunkListener(chunkChurn), this);
 
         startedAtMillis = System.currentTimeMillis();
         startupGraceMillis = getConfig().getLong("startup_grace_seconds", 60L) * 1000L;
@@ -120,9 +118,6 @@ public final class ArgusPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (sampler != null) {
-            sampler.stop();
-        }
         if (scheduler != null) {
             scheduler.cancelAll();
         }
@@ -138,6 +133,7 @@ public final class ArgusPlugin extends JavaPlugin {
             return;
         }
         lastSnapshot = snapshot;
+        sampleGc();
 
         // При старте идёт генерация мира, и метрики всегда плохие. Тревоги в этот
         // момент только сбивают с толку, поэтому первые минуты просто молчим.
@@ -196,6 +192,23 @@ public final class ArgusPlugin extends JavaPlugin {
         return performed;
     }
 
+    private void sampleGc() {
+        long count = 0L;
+        long millis = 0L;
+        for (java.lang.management.GarbageCollectorMXBean bean
+                : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) {
+            long c = bean.getCollectionCount();
+            long t = bean.getCollectionTime();
+            if (c > 0) {
+                count += c;
+            }
+            if (t > 0) {
+                millis += t;
+            }
+        }
+        gcStats.sample(count, millis, System.currentTimeMillis());
+    }
+
     private void advanceHotspotSearch() {
         Diagnosis diagnosis = pendingDiagnosis;
         if (diagnosis == null) {
@@ -211,34 +224,37 @@ public final class ArgusPlugin extends JavaPlugin {
         HotChunk worst = result.worst();
         if (worst == null) {
             getLogger().info("Явного виновника не нашлось (просканировано чанков: " + result.scanned() + ")");
-            notifier.info(diagnosisText(diagnosis) + " Явного виновника не нашлось.");
+            notifier.info(diagnosisText(diagnosis) + " " + hints());
             return;
         }
 
-        getLogger().info("Виновник: " + worst.shortName() + " (" + worst.describe() + ")");
+        String details = ChunkDetails.describe(worst.world(), worst.chunkX(), worst.chunkZ());
+        getLogger().info("Виновник: " + worst.shortName() + " (" + worst.describe() + ") | " + details);
 
         List<HealAction> performed = applyPlan(diagnosis, worst.target());
 
         notifier.info(diagnosisText(diagnosis)
                 + " Виновник: " + worst.shortName() + " (" + worst.describe() + ")"
-                + " | Кто занимает время: " + topPlugins(3));
+                + " | " + details
+                + hints());
     }
 
-    /** Кто занимает время сервера, в процентах от окна наблюдения. */
-    public String topPlugins(int count) {
-        Map<String, Double> distribution = profiler.distribution();
-        if (distribution.isEmpty()) {
-            return "нет данных";
-        }
+    /**
+     * Что ещё может объяснять лаг, если виновник не найден по чанкам.
+     * Здесь только то, что можно измерить точно.
+     */
+    public String hints() {
         List<String> parts = new ArrayList<>();
-        int i = 0;
-        for (Map.Entry<String, Double> entry : distribution.entrySet()) {
-            if (i++ >= count) {
-                break;
-            }
-            parts.add(entry.getKey() + " " + Math.round(entry.getValue()) + "%");
+        if (gcStats.overheadPercent() >= getConfig().getDouble("gc_warn_percent", 8.0)) {
+            parts.add("сборка мусора забирает " + Math.round(gcStats.overheadPercent()) + "% времени");
         }
-        return String.join(", ", parts);
+        if (chunkChurn.perMinute() >= getConfig().getInt("chunk_churn_warn", 120)) {
+            parts.add("чанки едут: " + chunkChurn.perMinute() + " в минуту, мир не успевает генерироваться");
+        }
+        if (parts.isEmpty()) {
+            parts.add("если лаг остался - смотри spark: /timings paste");
+        }
+        return "| " + String.join("; ", parts);
     }
 
     private void notifyAsync(Diagnosis diagnosis, List<HealAction> performed) {
@@ -335,8 +351,12 @@ public final class ArgusPlugin extends JavaPlugin {
         return notifier;
     }
 
-    public PluginProfiler profiler() {
-        return profiler;
+    public GcStats gcStats() {
+        return gcStats;
+    }
+
+    public ChunkChurn chunkChurn() {
+        return chunkChurn;
     }
 
     public TickTimer tickTimer() {
