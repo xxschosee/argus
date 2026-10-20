@@ -9,6 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -119,10 +120,23 @@ public final class ArgusCommand implements CommandExecutor, TabCompleter {
     }
 
     private void plugins(CommandSender sender) {
-        sender.sendMessage("§7Точный профиль плагинов считает spark: /timings paste");
-        sender.sendMessage("§7Здесь видны только те вещи, что можно измерить точно:");
-        sender.sendMessage("§7сборка мусора §f" + Math.round(plugin.gcStats().overheadPercent()) + "%");
-        sender.sendMessage("§7смена чанков §f" + plugin.chunkChurn().perMinute() + " в минуту");
+        Map<String, Double> distribution = plugin.profiler() == null
+                ? Map.of() : plugin.profiler().distribution();
+        if (distribution.isEmpty()) {
+            sender.sendMessage("§7Пока нет образцов, подожди немного.");
+            sender.sendMessage("§7Точный профиль плагинов считает spark: /timings paste");
+            return;
+        }
+        sender.sendMessage("§6§l— кто занимает время (" + plugin.profiler().sampleCount() + " образцов)");
+        int i = 0;
+        for (Map.Entry<String, Double> entry : distribution.entrySet()) {
+            if (i++ >= 10) {
+                break;
+            }
+            String bar = "#".repeat(Math.min(20, (int) Math.round(entry.getValue() / 5.0)));
+            sender.sendMessage("§f" + entry.getKey() + " §7" + Math.round(entry.getValue()) + "% "
+                    + "§8" + bar);
+        }
     }
 
     @Override

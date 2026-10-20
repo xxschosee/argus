@@ -1,6 +1,7 @@
 package com.xxschosee.argus;
 
 import com.xxschosee.argus.core.ChunkChurn;
+import com.xxschosee.argus.core.PluginProfiler;
 import com.xxschosee.argus.core.Cause;
 import com.xxschosee.argus.core.Diagnosis;
 import com.xxschosee.argus.core.DiagnosisEngine;
@@ -23,13 +24,17 @@ import com.xxschosee.argus.platform.BukkitMetricsCollector;
 import com.xxschosee.argus.platform.ChunkDetails;
 import com.xxschosee.argus.platform.ChunkListener;
 import com.xxschosee.argus.platform.HealExecutor;
+import com.xxschosee.argus.platform.JfrProfiler;
 import com.xxschosee.argus.platform.MetricsCollector;
+import com.xxschosee.argus.platform.PluginOwnership;
 import com.xxschosee.argus.platform.SchedulerFacade;
 import com.xxschosee.argus.platform.TickListener;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map;
 import java.util.logging.Level;
 import org.bukkit.command.PluginCommand;
@@ -49,6 +54,8 @@ public final class ArgusPlugin extends JavaPlugin {
     private TickTimer tickTimer;
     private GcStats gcStats;
     private ChunkChurn chunkChurn;
+    private PluginProfiler profiler;
+    private JfrProfiler jfrProfiler;
 
     private volatile MetricsSnapshot lastSnapshot;
 
@@ -96,6 +103,24 @@ public final class ArgusPlugin extends JavaPlugin {
         chunkChurn = new ChunkChurn();
         getServer().getPluginManager().registerEvents(new ChunkListener(chunkChurn), this);
 
+        if (getConfig().getBoolean("jfr.enabled", true)) {
+            profiler = new PluginProfiler(getConfig().getLong("jfr.window_seconds", 300L));
+            PluginOwnership ownership = new PluginOwnership(
+                    Arrays.asList(getServer().getPluginManager().getPlugins()));
+            jfrProfiler = new JfrProfiler(ownership, profiler,
+                    getConfig().getLong("jfr.sample_period_ms", 10L),
+                    tickListener::mainThread);
+            try {
+                jfrProfiler.start();
+                long window = Math.max(5L, getConfig().getLong("jfr.window_seconds", 300L));
+                scheduler.runAsyncTimer(jfrProfiler::rotate, window * 20L, window * 20L);
+                getLogger().info("Профиль по плагинам включён, окно " + window + " с.");
+            } catch (RuntimeException e) {
+                getLogger().warning("JFR не запустился: " + e.getMessage());
+                jfrProfiler = null;
+            }
+        }
+
         startedAtMillis = System.currentTimeMillis();
         startupGraceMillis = getConfig().getLong("startup_grace_seconds", 60L) * 1000L;
 
@@ -118,6 +143,9 @@ public final class ArgusPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (jfrProfiler != null) {
+            jfrProfiler.stop();
+        }
         if (scheduler != null) {
             scheduler.cancelAll();
         }
@@ -251,10 +279,34 @@ public final class ArgusPlugin extends JavaPlugin {
         if (chunkChurn.perMinute() >= getConfig().getInt("chunk_churn_warn", 120)) {
             parts.add("чанки едут: " + chunkChurn.perMinute() + " в минуту, мир не успевает генерироваться");
         }
+        String owner = topOwner();
+        if (owner != null) {
+            parts.add("больше всего времени занимает " + owner);
+        }
         if (parts.isEmpty()) {
             parts.add("если лаг остался - смотри spark: /timings paste");
         }
         return "| " + String.join("; ", parts);
+    }
+
+    /** Кто занимает время сервера, по данным JFR. */
+    public String topOwner() {
+        if (profiler == null) {
+            return null;
+        }
+        Map<String, Double> distribution = profiler.distribution();
+        if (distribution.isEmpty()) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        int i = 0;
+        for (Map.Entry<String, Double> entry : distribution.entrySet()) {
+            if (i++ >= 3) {
+                break;
+            }
+            parts.add(entry.getKey() + " " + Math.round(entry.getValue()) + "%");
+        }
+        return String.join(", ", parts);
     }
 
     private void notifyAsync(Diagnosis diagnosis, List<HealAction> performed) {
@@ -353,6 +405,10 @@ public final class ArgusPlugin extends JavaPlugin {
 
     public GcStats gcStats() {
         return gcStats;
+    }
+
+    public PluginProfiler profiler() {
+        return profiler;
     }
 
     public ChunkChurn chunkChurn() {
