@@ -1,17 +1,10 @@
-# По умолчанию - текст с нормализацией переводов строк
 * text=auto eol=lf
 
-# Shell-скрипты и конфиги - строго LF, иначе в Linux они не запустятся
-*.sh text eol=lf
-*.yml text eol=lf
-*.yaml text eol=lf
-*.mjs text eol=lf
-*.kts text eol=lf
+# gradlew - шелловский скрипт, на Linux должен быть только LF
 gradlew text eol=lf
+
+# .bat - виндовый, наоборот, ждёт CRLF
 gradlew.bat text eol=crlf
 
-# Бинарные файлы
+# бинарники не трогаем
 *.jar binary
-*.png binary
-*.gif binary
-*.zip binary
