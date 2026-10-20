@@ -11,13 +11,6 @@ import java.time.Duration;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Минимальный клиент Telegram Bot API.
- *
- * Только то, что нужно плагину: отправка сообщений. Без зависимостей — используется
- * HTTP-клиент из JDK. Сырые JSON-ответы не разбираются: для проверки успеха
- * достаточно поиска {@code "ok":true} в теле ответа.
- */
 public final class TelegramClient {
 
     private static final String API_BASE = "https://api.telegram.org";
@@ -37,13 +30,6 @@ public final class TelegramClient {
                 .build();
     }
 
-    /**
-     * Отправить сообщение.
-     *
-     * @param chatId чат получателя
-     * @param text   текст; отправляется как HTML, спецсимволы экранируются
-     * @return true, если Telegram принял сообщение
-     */
     public boolean sendMessage(long chatId, String text) {
         String body = "chat_id=" + chatId
                 + "&text=" + encode(text)
@@ -74,12 +60,10 @@ public final class TelegramClient {
         }
     }
 
-    /** Проверить токен и чат: Telegram вернёт ошибку, если что-то не так. */
     public boolean verify(long chatId) {
         return sendMessage(chatId, "&#9881; <b>Подключён</b>. Буду сообщать о лагах.");
     }
 
-    /** Экранировать текст для parse_mode=HTML. */
     public static String escapeHtml(String raw) {
         if (raw == null) {
             return "";

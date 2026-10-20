@@ -7,13 +7,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Превращает диагноз в конкретный план лечения.
- *
- * Планирование и применение разнесены: движок решает, ЧТО делать, а слой платформы
- * решает, КАК это сделать на сервере. Благодаря этому план можно полностью
- * проверить в юнит-тесте, не поднимая Minecraft.
- */
 public final class HealEngine {
 
     private final Map<Cause, List<HealAction>> policy;
@@ -24,10 +17,6 @@ public final class HealEngine {
         this.policy = Collections.unmodifiableMap(copy);
     }
 
-    /**
-     * План действий для диагноза.
-     * Для восстановления план пустой — лечить нечего.
-     */
     public List<HealAction> plan(Diagnosis diagnosis) {
         if (diagnosis.resolved()) {
             return List.of();
@@ -35,18 +24,12 @@ public final class HealEngine {
         return policy.getOrDefault(diagnosis.cause(), List.of());
     }
 
-    /** Заменить план для конкретной причины (используется при перезагрузке конфига). */
     public HealEngine withPolicy(Cause cause, List<HealAction> actions) {
         Map<Cause, List<HealAction>> next = new EnumMap<>(policy);
         next.put(cause, List.copyOf(actions));
         return new HealEngine(next);
     }
 
-    /**
-     * План по умолчанию: только безопасные действия.
-     * Разрушительных действий (удаление сущностей, рестарт) здесь нет намеренно —
-     * они включаются админом вручную в config.yml.
-     */
     public static HealEngine defaultPolicy() {
         Map<Cause, List<HealAction>> policy = new EnumMap<>(Cause.class);
 
@@ -72,7 +55,6 @@ public final class HealEngine {
         return new HealEngine(policy);
     }
 
-    /** План, собранный из строк конфига вида {@code heal_actions.tps_degraded = [notify_only, trim_memory]}. */
     public static HealEngine fromConfig(Map<Cause, List<String>> config) {
         Map<Cause, List<HealAction>> policy = new EnumMap<>(Cause.class);
         for (Map.Entry<Cause, List<String>> entry : config.entrySet()) {
@@ -86,7 +68,6 @@ public final class HealEngine {
         return new HealEngine(policy);
     }
 
-    /** План для диагноза с подстановкой цели — используется, когда известен виновник. */
     public List<HealAction> planWithTarget(Diagnosis diagnosis, String target) {
         List<HealAction> base = plan(diagnosis);
         if (base.isEmpty() || target == null || target.isEmpty()) {
@@ -103,7 +84,6 @@ public final class HealEngine {
         return targeted;
     }
 
-    /** Удобный вид политики для дампа в лог. */
     public Map<String, List<String>> describe() {
         Map<String, List<String>> out = new LinkedHashMap<>();
         policy.forEach((cause, actions) -> out.put(cause.key(),

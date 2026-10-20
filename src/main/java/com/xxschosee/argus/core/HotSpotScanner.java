@@ -4,20 +4,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * Инкрементальный поиск виновника деградации.
- *
- * Почему инкрементально: подсчёт сущностей в чанке — дорогая операция, и обойти
- * все чанки разом значит устроить лаг самому себе. Поэтому скан идёт частями:
- * за тик обрабатывается не больше {@code budget} чанков, результат собирается
- * постепенно, а админ получает список виновников через несколько секунд.
- *
- * Ядро не знает про Bukkit — источник чанков задаётся снаружи, поэтому вся логика
- * бюджета и сортировки проверяется юнит-тестами.
- */
 public final class HotSpotScanner {
 
-    /** Один чанк для опроса. Дорогие методы вызываются лениво и не чаще раза за проход. */
     public interface ChunkProbe {
         String world();
 
@@ -30,15 +18,11 @@ public final class HotSpotScanner {
         int blockEntityCount();
     }
 
-    /** Источник списка загруженных чанков. */
     public interface ChunkSource {
-        /** Пересобрать список загруженных чанков — в начале нового цикла скана. */
         void refresh();
 
-        /** Сколько сейчас чанков доступно для опроса. */
         int size();
 
-        /** Описать чанк по индексу. */
         ChunkProbe probe(int index);
     }
 
@@ -61,11 +45,8 @@ public final class HotSpotScanner {
         this.topN = topN;
     }
 
-    /**
-     * Обработать не больше {@code budgetPerTick} чанков.
-     *
-     * @return текущее состояние скана
-     */
+    // Подсчёт сущностей в чанке дорогой, поэтому за один тик обрабатывается не больше
+    // заданного бюджета чанков, иначе скан сам станет той лагой, которую ищет.
     public ScanResult scan(int budgetPerTick) {
         if (complete) {
             return result();
@@ -96,7 +77,6 @@ public final class HotSpotScanner {
         return result();
     }
 
-    /** Начать новый цикл скана с нуля. */
     public void reset() {
         cursor = 0;
         scanned = 0;
@@ -131,14 +111,12 @@ public final class HotSpotScanner {
         return new ScanResult(List.copyOf(sorted), complete, scanned);
     }
 
-    /** Результат скана на текущий момент. */
     public record ScanResult(List<HotChunk> hottest, boolean complete, int scanned) {
 
         public ScanResult {
             hottest = List.copyOf(hottest);
         }
 
-        /** Самый вероятный виновник, если он есть. */
         public HotChunk worst() {
             return hottest.isEmpty() ? null : hottest.get(0);
         }

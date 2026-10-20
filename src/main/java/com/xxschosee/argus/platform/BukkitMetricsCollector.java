@@ -6,13 +6,6 @@ import java.lang.management.MemoryUsage;
 import org.bukkit.Server;
 import org.bukkit.World;
 
-/**
- * Снимает метрики с живого Paper-сервера.
- *
- * Стоимость одного съёма: чтение счётчиков, без аллокаций и без обхода миров,
- * кроме получения счётчиков. Вызывается раз в несколько секунд, поэтому
- * накладные расходы несущественны.
- */
 public final class BukkitMetricsCollector implements MetricsCollector {
 
     private final Server server;

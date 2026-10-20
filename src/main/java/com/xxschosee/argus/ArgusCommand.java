@@ -17,7 +17,6 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** Команда {@code /argus} — единственный способ посмотреть состояние из игры. */
 public final class ArgusCommand implements CommandExecutor, TabCompleter {
 
     private static final DateTimeFormatter TIME =

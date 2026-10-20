@@ -8,15 +8,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Собирает текст сообщения для админа.
- *
- * Отдельный класс без зависимости от сети — так текст можно проверить обычным
- * юнит-тестом, а отправка остаётся тонким слоем поверх.
- */
 public final class MessageRenderer {
 
-    /** Язык сообщений. */
     public enum Language {
         RU,
         EN;
@@ -56,7 +49,6 @@ public final class MessageRenderer {
         this.serverName = serverName == null ? "" : serverName;
     }
 
-    /** Текст сообщения о диагнозе. */
     public String render(Diagnosis diagnosis, List<HealAction> performed) {
         StringBuilder sb = new StringBuilder();
         String icon = diagnosis.severity() == Severity.CRITICAL ? "&#128308;" : "&#9881;";
@@ -95,7 +87,6 @@ public final class MessageRenderer {
         return sb.toString();
     }
 
-    /** Короткое служебное сообщение. */
     public String renderInfo(String message) {
         return "&#9881; " + escape(message);
     }

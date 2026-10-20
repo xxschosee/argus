@@ -12,12 +12,6 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
-/**
- * Применяет лечебные действия на Paper-сервере.
- *
- * Все действия, кроме {@link HealKind#REMOVE_ENTITIES}, обратимы: выгруженный чанк
- * вернётся по требованию, автосохранение включится обратно по таймеру.
- */
 public final class BukkitHealExecutor implements HealExecutor {
 
     private final Plugin plugin;
@@ -33,7 +27,7 @@ public final class BukkitHealExecutor implements HealExecutor {
     @Override
     public boolean apply(HealAction action) {
         return switch (action.kind()) {
-            case NOTIFY_ONLY -> false; // это не действие, а уведомление
+            case NOTIFY_ONLY -> false;
             case TRIM_MEMORY -> trimMemory();
             case UNLOAD_CHUNK -> unloadChunk(action.target());
             case REMOVE_ENTITIES -> removeEntities(action.target());
@@ -47,8 +41,6 @@ public final class BukkitHealExecutor implements HealExecutor {
     public String name() {
         return "bukkit";
     }
-
-    // ------------------------------------------------------------------
 
     private boolean trimMemory() {
         long before = usedHeap();
@@ -69,7 +61,8 @@ public final class BukkitHealExecutor implements HealExecutor {
             logger.warning("Мир не найден: " + ref.world());
             return false;
         }
-        // unloadChunkRequest уважает присутствие игроков и не выгружает чанк насильно
+
+        // unloadChunkRequest учитывает игроков в чанке, в отличие от Chunk#unload.
         boolean requested = world.unloadChunkRequest(ref.x(), ref.z());
         if (requested) {
             logger.info("Запрошена выгрузка чанка " + ref.shortName());
@@ -139,7 +132,6 @@ public final class BukkitHealExecutor implements HealExecutor {
         return usage == null ? 0L : usage.getUsed();
     }
 
-    /** Найти уже загруженный чанк, не вызывая getChunkAt (тот загрузил бы его). */
     private Chunk findLoadedChunk(World world, int x, int z) {
         for (Chunk chunk : world.getLoadedChunks()) {
             if (chunk.getX() == x && chunk.getZ() == z) {
@@ -149,7 +141,6 @@ public final class BukkitHealExecutor implements HealExecutor {
         return null;
     }
 
-    /** Разобранная цель вида {@code chunk:world:12,-8}. */
     record ChunkRef(String world, int x, int z) {
 
         static ChunkRef parse(String target) {

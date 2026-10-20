@@ -7,13 +7,6 @@ import org.bukkit.Chunk;
 import org.bukkit.Server;
 import org.bukkit.World;
 
-/**
- * Источник загруженных чанков сервера.
- *
- * Список пересобирается один раз на цикл скана, дальше чанки опрашиваются по индексу.
- * Дорогая операция — подсчёт сущностей — вызывается только из пошагового скана,
- * поэтому лага самому себе скан не создаёт.
- */
 public final class BukkitChunkSource implements HotSpotScanner.ChunkSource {
 
     private final Server server;
@@ -48,7 +41,6 @@ public final class BukkitChunkSource implements HotSpotScanner.ChunkSource {
         return new BukkitProbe(chunk);
     }
 
-    /** Ленивый опрос одного чанка: счётчики читаются в момент вызова. */
     private record BukkitProbe(Chunk chunk) implements HotSpotScanner.ChunkProbe {
 
         @Override

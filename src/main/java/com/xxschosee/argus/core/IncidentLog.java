@@ -5,11 +5,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
-/**
- * Кольцевой буфер последних инцидентов. Нужен админу, чтобы посмотреть историю:
- * «вчера лагало три раза, вот причины».
- * Хранится только в памяти — переживать перезапуск не нужно.
- */
 public final class IncidentLog {
 
     private final Deque<Entry> entries = new ArrayDeque<>();
@@ -22,7 +17,6 @@ public final class IncidentLog {
         this.capacity = capacity;
     }
 
-    /** Записать событие. */
     public synchronized void record(Diagnosis diagnosis, long timestampMillis) {
         entries.addLast(new Entry(timestampMillis, diagnosis.cause(), diagnosis.severity(),
                 diagnosis.resolved(), diagnosis.summary()));
@@ -31,7 +25,6 @@ public final class IncidentLog {
         }
     }
 
-    /** Последние события, новые сверху. */
     public synchronized List<Entry> recent(int limit) {
         List<Entry> all = new ArrayList<>(entries);
         java.util.Collections.reverse(all);
@@ -46,7 +39,6 @@ public final class IncidentLog {
         entries.clear();
     }
 
-    /** Одна запись в журнале инцидентов. */
     public record Entry(
             long timestampMillis,
             Cause cause,

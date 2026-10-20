@@ -29,18 +29,6 @@ import java.util.logging.Level;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
-/**
- * Сторож и авто-лечитель для Paper-серверов.
- *
- * Логика плагина разделена на три слоя:
- * <ul>
- *   <li>{@code com.xxschosee.argus.core} - чистое ядро: метрики, диагнозы, план лечения.
- *       Не знает про Bukkit, полностью покрыто юнит-тестами.</li>
- *   <li>{@code com.xxschosee.argus.platform} - адаптеры к серверу: сбор метрик,
- *       сканирование чанков, применение действий, планировщик.</li>
- *   <li>{@code com.xxschosee.argus.notify} - доставка сообщений админу (Telegram).</li>
- * </ul>
- */
 public final class ArgusPlugin extends JavaPlugin {
 
     private SchedulerFacade scheduler;
@@ -53,10 +41,8 @@ public final class ArgusPlugin extends JavaPlugin {
     private Notifier notifier;
     private Thresholds thresholds;
 
-    /** Метрики последнего съёма — для команды /argus status. */
     private volatile MetricsSnapshot lastSnapshot;
 
-    /** Диагноз, для которого сейчас ищется виновник. */
     private volatile Diagnosis pendingDiagnosis;
 
     @Override
@@ -95,8 +81,7 @@ public final class ArgusPlugin extends JavaPlugin {
         long period = Math.max(20L, getConfig().getLong("sample.interval_ticks", 100L));
         scheduler.runGlobalTimer(this::tick, period, period);
 
-        // Первый замер сразу: чтобы /argus status отвечал уже через секунду после старта,
-        // а не после первого интервала.
+        // Первый замер сразу, чтобы /argus status отвечал уже через секунду после старта.
         try {
             lastSnapshot = collector.capture();
         } catch (Exception e) {
@@ -115,10 +100,6 @@ public final class ArgusPlugin extends JavaPlugin {
         }
         getLogger().info("Остановлен.");
     }
-
-    // ------------------------------------------------------------------
-    // основной цикл
-    // ------------------------------------------------------------------
 
     private void tick() {
         MetricsSnapshot snapshot;
@@ -158,7 +139,6 @@ public final class ArgusPlugin extends JavaPlugin {
         }
     }
 
-    /** Выполнить действия, которые не требуют поиска виновника. */
     private List<HealAction> applyPlan(Diagnosis diagnosis, String target) {
         List<HealAction> performed = new ArrayList<>();
         if (diagnosis.resolved()) {
@@ -176,10 +156,6 @@ public final class ArgusPlugin extends JavaPlugin {
         return performed;
     }
 
-    /**
-     * Продвинуть поиск виновника. Скан идёт частями, поэтому виновник находится
-     * через несколько секунд после постановки диагноза.
-     */
     private void advanceHotspotSearch() {
         Diagnosis diagnosis = pendingDiagnosis;
         if (diagnosis == null) {
@@ -203,8 +179,7 @@ public final class ArgusPlugin extends JavaPlugin {
                 + " (сущностей " + worst.entityCount() + ", блочных " + worst.blockEntityCount() + ")");
 
         List<HealAction> performed = applyPlan(diagnosis, worst.target());
-        // Виновника сообщаем всегда, даже если автоматических действий не было -
-        // иначе админ не поймёт, что именно искать.
+
         notifier.info(diagnosisText(diagnosis)
                 + " Виновник: " + worst.shortName()
                 + " (сущностей " + worst.entityCount() + ", блочных " + worst.blockEntityCount() + ")");
@@ -221,10 +196,6 @@ public final class ArgusPlugin extends JavaPlugin {
     private boolean needsHotspot(Cause cause) {
         return cause == Cause.ENTITY_OVERLOAD || cause == Cause.CHUNK_OVERLOAD || cause == Cause.HIGH_MSPT;
     }
-
-    // ------------------------------------------------------------------
-    // конфиг
-    // ------------------------------------------------------------------
 
     private Thresholds readThresholds() {
         var cfg = getConfig();
@@ -288,10 +259,6 @@ public final class ArgusPlugin extends JavaPlugin {
                 + ", heap " + thresholds.warnHeapRatio() + "/" + thresholds.criticalHeapRatio();
     }
 
-    // ------------------------------------------------------------------
-    // доступ для команды
-    // ------------------------------------------------------------------
-
     public MetricsSnapshot lastSnapshot() {
         return lastSnapshot;
     }
@@ -316,7 +283,6 @@ public final class ArgusPlugin extends JavaPlugin {
         return scheduler;
     }
 
-    /** Перечитать конфиг и применить новые пороги. */
     public void reloadSettings() {
         reloadConfig();
         thresholds = readThresholds();
@@ -325,8 +291,8 @@ public final class ArgusPlugin extends JavaPlugin {
         incidentLog.clear();
         scanner.reset();
         pendingDiagnosis = null;
-        // Токен и чат намеренно не перечитываются: смена бота требует перезапуска,
-        // иначе старый бот продолжит слать сообщения в старый чат.
+
+        // Токен и чат намеренно не перечитываются: смена бота требует перезапуска.
         getLogger().info("Пороги и план лечения применены. Для смены Telegram-токена нужен перезапуск сервера.");
     }
 }

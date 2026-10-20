@@ -4,10 +4,6 @@ import com.xxschosee.argus.core.Diagnosis;
 import com.xxschosee.argus.core.HealAction;
 import java.util.List;
 
-/**
- * Отправляет сообщения админу в Telegram.
- * Форматирование вынесено в {@link MessageRenderer}, здесь — только доставка.
- */
 public final class TelegramNotifier implements Notifier {
 
     private final TelegramClient client;

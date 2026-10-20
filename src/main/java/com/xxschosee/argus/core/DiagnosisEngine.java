@@ -6,15 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Превращает снимок метрик в диагнозы.
- *
- * Ключевое свойство — edge-trigger: тревога срабатывает один раз на эпизод деградации,
- * а не на каждом снимке. Как только причина ушла — приходит диагноз восстановления, и счётчик
- * сбрасывается. Без этого плагин завалил бы админа сообщениями.
- *
- * Класс намеренно не зависит от Bukkit: вся логика проверяется обычными юнит-тестами.
- */
 public final class DiagnosisEngine {
 
     private final Thresholds thresholds;
@@ -25,12 +16,8 @@ public final class DiagnosisEngine {
         this.thresholds = thresholds;
     }
 
-    /**
-     * Разобрать очередной снимок.
-     *
-     * @return список событий: новые диагнозы и сообщения о восстановлении.
-     *         Пустой список — значит ничего не изменилось.
-     */
+    // Тревога срабатывает один раз на эпизод деградации, а не на каждый замер.
+    // Когда причина ушла, приходит событие восстановления и счётчик сбрасывается.
     public List<Diagnosis> analyze(MetricsSnapshot snapshot) {
         List<Diagnosis> events = new ArrayList<>();
         for (Cause cause : Cause.values()) {
@@ -52,23 +39,18 @@ public final class DiagnosisEngine {
         return events;
     }
 
-    /** Сбросить состояние — например, после ручной перезагрузки конфига. */
     public void reset() {
         streaks.clear();
         firing.clear();
     }
 
-    /** Сейчас активна ли эта причина (для /argus status). */
     public boolean isFiring(Cause cause) {
         return firing.getOrDefault(cause, Boolean.FALSE);
     }
 
-    /** Текущая длина серии плохих снимков по причине. */
     public int streak(Cause cause) {
         return streaks.getOrDefault(cause, 0);
     }
-
-    // ------------------------------------------------------------------
 
     private Severity severityOf(Cause cause, MetricsSnapshot s) {
         switch (cause) {
@@ -130,7 +112,7 @@ public final class DiagnosisEngine {
                 ev.put("limit", String.valueOf(thresholds.maxChunks()));
             }
             default -> {
-                // no evidence for unknown cause
+
             }
         }
         return ev;
