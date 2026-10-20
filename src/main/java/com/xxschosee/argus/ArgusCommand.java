@@ -62,6 +62,8 @@ public final class ArgusCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("§7TPS: §f" + fmt(snapshot.tps1m())
                 + " §7(5м " + fmt(snapshot.tps5m()) + ", 15м " + fmt(snapshot.tps15m()) + ")");
         sender.sendMessage("§7Время тика: §f" + fmt(snapshot.mspt()) + " мс");
+        sender.sendMessage("§7Худший тик: §f" + fmt(snapshot.worstTickMs()) + " мс"
+                + " §7(p99 " + fmt(snapshot.p99TickMs()) + " мс, всплесков " + snapshot.ticksOverBudget() + ")");
         sender.sendMessage("§7Куча: §f" + (snapshot.heapUsedBytes() / 1024 / 1024) + " / "
                 + (snapshot.heapMaxBytes() / 1024 / 1024) + " МБ"
                 + " §7(" + Math.round(snapshot.heapRatio() * 100) + "%)");

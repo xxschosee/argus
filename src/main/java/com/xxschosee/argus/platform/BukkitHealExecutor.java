@@ -26,6 +26,11 @@ public final class BukkitHealExecutor implements HealExecutor {
 
     @Override
     public boolean apply(HealAction action) {
+        // Пустая цель у чанкового действия значит, что виновник не найден.
+        // Молча пропускаем: это не ошибка, а отсутствие данных.
+        if (action.target().isEmpty() && isChunkScoped(action.kind())) {
+            return false;
+        }
         return switch (action.kind()) {
             case NOTIFY_ONLY -> false;
             case TRIM_MEMORY -> trimMemory();
@@ -36,10 +41,13 @@ public final class BukkitHealExecutor implements HealExecutor {
             case RESTART_SERVER -> unsupported(action, "рестарт через панель появится в следующей версии");
         };
     }
-
     @Override
     public String name() {
         return "bukkit";
+    }
+
+    private static boolean isChunkScoped(HealKind kind) {
+        return kind == HealKind.UNLOAD_CHUNK || kind == HealKind.REMOVE_ENTITIES;
     }
 
     private boolean trimMemory() {

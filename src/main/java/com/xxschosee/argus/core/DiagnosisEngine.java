@@ -16,8 +16,6 @@ public final class DiagnosisEngine {
         this.thresholds = thresholds;
     }
 
-    // Тревога срабатывает один раз на эпизод деградации, а не на каждый замер.
-    // Когда причина ушла, приходит событие восстановления и счётчик сбрасывается.
     public List<Diagnosis> analyze(MetricsSnapshot snapshot) {
         List<Diagnosis> events = new ArrayList<>();
         for (Cause cause : Cause.values()) {
@@ -52,6 +50,8 @@ public final class DiagnosisEngine {
         return streaks.getOrDefault(cause, 0);
     }
 
+    // ------------------------------------------------------------------
+
     private Severity severityOf(Cause cause, MetricsSnapshot s) {
         switch (cause) {
             case TPS_DEGRADED:
@@ -59,6 +59,11 @@ public final class DiagnosisEngine {
                     return Severity.CRITICAL;
                 }
                 return s.safeTps() < thresholds.warnTps() ? Severity.WARNING : Severity.INFO;
+            case TICK_SPIKE:
+                if (s.ticksOverBudget() >= thresholds.spikesBeforeAlarm() * 2) {
+                    return Severity.CRITICAL;
+                }
+                return s.ticksOverBudget() >= thresholds.spikesBeforeAlarm() ? Severity.WARNING : Severity.INFO;
             case HIGH_MSPT:
                 if (s.mspt() > thresholds.criticalMspt()) {
                     return Severity.CRITICAL;
@@ -68,7 +73,11 @@ public final class DiagnosisEngine {
                 if (s.heapRatio() > thresholds.criticalHeapRatio()) {
                     return Severity.CRITICAL;
                 }
-                return s.heapRatio() > thresholds.warnHeapRatio() ? Severity.WARNING : Severity.INFO;
+                boolean lagging = s.mspt() > thresholds.warnMspt() || s.safeTps() < thresholds.warnTps();
+                if (s.heapRatio() > thresholds.warnHeapRatio() && lagging) {
+                    return thresholds.heapNeedsLag() ? Severity.WARNING : Severity.INFO;
+                }
+                return Severity.INFO;
             case ENTITY_OVERLOAD:
                 if (s.entitiesLoaded() > thresholds.maxEntities() * 2) {
                     return Severity.CRITICAL;
@@ -93,6 +102,12 @@ public final class DiagnosisEngine {
                 ev.put("mspt", String.format(java.util.Locale.ROOT, "%.1f", s.mspt()));
                 ev.put("players", s.playersOnline() + "/" + s.playersMax());
             }
+            case TICK_SPIKE -> {
+                ev.put("spikes", s.ticksOverBudget() + " x >" + (long) thresholds.tickBudgetMs() + "ms");
+                ev.put("worst_tick_ms", String.format(java.util.Locale.ROOT, "%.1f", s.worstTickMs()));
+                ev.put("p99_tick_ms", String.format(java.util.Locale.ROOT, "%.1f", s.p99TickMs()));
+                ev.put("budget_ms", String.valueOf((long) thresholds.tickBudgetMs()));
+            }
             case HIGH_MSPT -> {
                 ev.put("mspt", String.format(java.util.Locale.ROOT, "%.1f", s.mspt()));
                 ev.put("tps_1m", String.format(java.util.Locale.ROOT, "%.2f", s.safeTps()));
@@ -102,6 +117,7 @@ public final class DiagnosisEngine {
                 ev.put("heap_used_mb", String.valueOf(s.heapUsedBytes() / 1024 / 1024));
                 ev.put("heap_max_mb", String.valueOf(s.heapMaxBytes() / 1024 / 1024));
                 ev.put("heap_ratio", String.format(java.util.Locale.ROOT, "%.2f", s.heapRatio()));
+                ev.put("mspt", String.format(java.util.Locale.ROOT, "%.1f", s.mspt()));
             }
             case ENTITY_OVERLOAD -> {
                 ev.put("entities", String.valueOf(s.entitiesLoaded()));
@@ -112,7 +128,6 @@ public final class DiagnosisEngine {
                 ev.put("limit", String.valueOf(thresholds.maxChunks()));
             }
             default -> {
-
             }
         }
         return ev;
@@ -122,6 +137,9 @@ public final class DiagnosisEngine {
         return switch (cause) {
             case TPS_DEGRADED -> String.format(java.util.Locale.ROOT,
                     "TPS dropped to %.2f (warn below %.1f)", s.safeTps(), thresholds.warnTps());
+            case TICK_SPIKE -> String.format(java.util.Locale.ROOT,
+                    "%d ticks longer than %.0f ms, worst %.1f ms",
+                    s.ticksOverBudget(), thresholds.tickBudgetMs(), s.worstTickMs());
             case HIGH_MSPT -> String.format(java.util.Locale.ROOT,
                     "Tick time %.1f ms (warn above %.0f ms)", s.mspt(), thresholds.warnMspt());
             case HEAP_PRESSURE -> String.format(java.util.Locale.ROOT,

@@ -9,7 +9,10 @@ public record Thresholds(
         double criticalHeapRatio,
         int maxEntities,
         int maxChunks,
-        int samplesBeforeAlarm
+        int samplesBeforeAlarm,
+        double tickBudgetMs,
+        int spikesBeforeAlarm,
+        boolean heapNeedsLag
 ) {
 
     public Thresholds {
@@ -19,7 +22,7 @@ public record Thresholds(
         if (warnTps <= 0 || criticalTps <= 0 || criticalTps >= warnTps) {
             throw new IllegalArgumentException("TPS: critical должен быть меньше warn");
         }
-
+        // Для кучи «хуже» = «больше», поэтому critical обязан быть ВЫШЕ warn.
         if (warnHeapRatio <= 0 || criticalHeapRatio <= 0 || criticalHeapRatio <= warnHeapRatio) {
             throw new IllegalArgumentException("heap ratio: critical должен быть больше warn");
         }
@@ -29,6 +32,12 @@ public record Thresholds(
         if (samplesBeforeAlarm < 1) {
             throw new IllegalArgumentException("samplesBeforeAlarm должен быть >= 1");
         }
+        if (tickBudgetMs <= 0) {
+            throw new IllegalArgumentException("tickBudgetMs должен быть положительным");
+        }
+        if (spikesBeforeAlarm < 1) {
+            throw new IllegalArgumentException("spikesBeforeAlarm должен быть >= 1");
+        }
     }
 
     public static Thresholds defaults() {
@@ -37,7 +46,9 @@ public record Thresholds(
                 17.0, 12.0,
                 0.80, 0.92,
                 3000, 4000,
-                3
+                3,
+                100.0, 3,
+                true
         );
     }
 }

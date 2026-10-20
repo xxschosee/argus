@@ -1,6 +1,7 @@
 package com.xxschosee.argus.platform;
 
 import com.xxschosee.argus.core.MetricsSnapshot;
+import com.xxschosee.argus.core.TickTimer;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
 import org.bukkit.Server;
@@ -9,9 +10,13 @@ import org.bukkit.World;
 public final class BukkitMetricsCollector implements MetricsCollector {
 
     private final Server server;
+    private final TickTimer timer;
+    private final double tickBudgetMs;
 
-    public BukkitMetricsCollector(Server server) {
+    public BukkitMetricsCollector(Server server, TickTimer timer, double tickBudgetMs) {
         this.server = server;
+        this.timer = timer;
+        this.tickBudgetMs = tickBudgetMs;
     }
 
     @Override
@@ -47,7 +52,10 @@ public final class BukkitMetricsCollector implements MetricsCollector {
                 server.getOnlinePlayers().size(),
                 server.getMaxPlayers(),
                 entities,
-                chunks
+                chunks,
+                timer.worstMs(),
+                timer.percentileMs(99.0),
+                timer.ticksOver(tickBudgetMs)
         );
     }
 }

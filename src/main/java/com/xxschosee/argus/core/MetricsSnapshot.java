@@ -11,7 +11,10 @@ public record MetricsSnapshot(
         int playersOnline,
         int playersMax,
         int entitiesLoaded,
-        int chunksLoaded
+        int chunksLoaded,
+        double worstTickMs,
+        double p99TickMs,
+        int ticksOverBudget
 ) {
 
     public double heapRatio() {

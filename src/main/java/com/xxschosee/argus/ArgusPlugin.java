@@ -10,6 +10,7 @@ import com.xxschosee.argus.core.HotSpotScanner;
 import com.xxschosee.argus.core.IncidentLog;
 import com.xxschosee.argus.core.MetricsSnapshot;
 import com.xxschosee.argus.core.Thresholds;
+import com.xxschosee.argus.core.TickTimer;
 import com.xxschosee.argus.notify.Notifier;
 import com.xxschosee.argus.notify.MessageRenderer;
 import com.xxschosee.argus.notify.TelegramClient;
@@ -20,6 +21,7 @@ import com.xxschosee.argus.platform.BukkitMetricsCollector;
 import com.xxschosee.argus.platform.HealExecutor;
 import com.xxschosee.argus.platform.MetricsCollector;
 import com.xxschosee.argus.platform.SchedulerFacade;
+import com.xxschosee.argus.platform.TickListener;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -40,10 +42,15 @@ public final class ArgusPlugin extends JavaPlugin {
     private HealExecutor executor;
     private Notifier notifier;
     private Thresholds thresholds;
+    private TickTimer tickTimer;
 
     private volatile MetricsSnapshot lastSnapshot;
 
     private volatile Diagnosis pendingDiagnosis;
+
+    private long startedAtMillis;
+    private long startupGraceMillis;
+    private boolean graceLogged;
 
     @Override
     public void onEnable() {
@@ -63,7 +70,9 @@ public final class ArgusPlugin extends JavaPlugin {
         }
 
         scheduler = new SchedulerFacade.Bukkit(this);
-        collector = new BukkitMetricsCollector(getServer());
+        tickTimer = new TickTimer(getConfig().getInt("sample.tick_window", 240));
+        getServer().getPluginManager().registerEvents(new TickListener(tickTimer), this);
+        collector = new BukkitMetricsCollector(getServer(), tickTimer, thresholds.tickBudgetMs());
         engine = new DiagnosisEngine(thresholds);
         healer = readHealPolicy();
         incidentLog = new IncidentLog(getConfig().getInt("incident_log_size", 50));
@@ -75,6 +84,9 @@ public final class ArgusPlugin extends JavaPlugin {
                 getLogger(),
                 getConfig().getLong("healer.autosave_restore_ticks", 1200L));
         notifier = buildNotifier();
+
+        startedAtMillis = System.currentTimeMillis();
+        startupGraceMillis = getConfig().getLong("startup_grace_seconds", 60L) * 1000L;
 
         registerCommand();
 
@@ -111,6 +123,16 @@ public final class ArgusPlugin extends JavaPlugin {
         }
         lastSnapshot = snapshot;
 
+        // При старте идёт генерация мира, и метрики всегда плохие. Тревоги в этот
+        // момент только сбивают с толку, поэтому первые минуты просто молчим.
+        if (System.currentTimeMillis() - startedAtMillis < startupGraceMillis) {
+            return;
+        }
+        if (!graceLogged) {
+            graceLogged = true;
+            getLogger().info("Разогрев закончен, слежу за сервером.");
+        }
+
         for (Diagnosis diagnosis : engine.analyze(snapshot)) {
             handleDiagnosis(diagnosis);
         }
@@ -133,7 +155,9 @@ public final class ArgusPlugin extends JavaPlugin {
         List<HealAction> performed = applyPlan(diagnosis, null);
         notifyAsync(diagnosis, performed);
 
-        if (needsHotspot(diagnosis.cause()) && pendingDiagnosis == null) {
+        // Виновника ищем при любой проблеме: без поиска половина тревог
+        // приходит с ответом "где смотреть - непонятно".
+        if (pendingDiagnosis == null) {
             pendingDiagnosis = diagnosis;
             scanner.reset();
         }
@@ -175,14 +199,12 @@ public final class ArgusPlugin extends JavaPlugin {
             return;
         }
 
-        getLogger().info("Виновник: " + worst.shortName()
-                + " (сущностей " + worst.entityCount() + ", блочных " + worst.blockEntityCount() + ")");
+        getLogger().info("Виновник: " + worst.shortName() + " (" + worst.describe() + ")");
 
         List<HealAction> performed = applyPlan(diagnosis, worst.target());
 
         notifier.info(diagnosisText(diagnosis)
-                + " Виновник: " + worst.shortName()
-                + " (сущностей " + worst.entityCount() + ", блочных " + worst.blockEntityCount() + ")");
+                + " Виновник: " + worst.shortName() + " (" + worst.describe() + ")");
     }
 
     private void notifyAsync(Diagnosis diagnosis, List<HealAction> performed) {
@@ -191,10 +213,6 @@ public final class ArgusPlugin extends JavaPlugin {
 
     private String diagnosisText(Diagnosis diagnosis) {
         return diagnosis.cause().key() + ": " + diagnosis.summary();
-    }
-
-    private boolean needsHotspot(Cause cause) {
-        return cause == Cause.ENTITY_OVERLOAD || cause == Cause.CHUNK_OVERLOAD || cause == Cause.HIGH_MSPT;
     }
 
     private Thresholds readThresholds() {
@@ -208,7 +226,10 @@ public final class ArgusPlugin extends JavaPlugin {
                 cfg.getDouble("thresholds.critical_heap_ratio", 0.92),
                 cfg.getInt("thresholds.max_entities", 3000),
                 cfg.getInt("thresholds.max_chunks", 4000),
-                Math.max(1, cfg.getInt("thresholds.samples_before_alarm", 3)));
+                Math.max(1, cfg.getInt("thresholds.samples_before_alarm", 3)),
+                cfg.getDouble("thresholds.tick_budget_ms", 100.0),
+                Math.max(1, cfg.getInt("thresholds.spikes_before_alarm", 3)),
+                cfg.getBoolean("thresholds.heap_needs_lag", true));
     }
 
     private HealEngine readHealPolicy() {
@@ -256,7 +277,8 @@ public final class ArgusPlugin extends JavaPlugin {
     private String describeThresholds() {
         return "mspt " + thresholds.warnMspt() + "/" + thresholds.criticalMspt()
                 + ", tps " + thresholds.warnTps() + "/" + thresholds.criticalTps()
-                + ", heap " + thresholds.warnHeapRatio() + "/" + thresholds.criticalHeapRatio();
+                + ", heap " + thresholds.warnHeapRatio() + "/" + thresholds.criticalHeapRatio()
+                + ", тик " + (long) thresholds.tickBudgetMs() + "мс x" + thresholds.spikesBeforeAlarm();
     }
 
     public MetricsSnapshot lastSnapshot() {

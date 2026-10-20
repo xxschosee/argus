@@ -16,6 +16,8 @@ public final class HotSpotScanner {
         int entityCount();
 
         int blockEntityCount();
+
+        int playerCount();
     }
 
     public interface ChunkSource {
@@ -25,6 +27,11 @@ public final class HotSpotScanner {
 
         ChunkProbe probe(int index);
     }
+
+    private static final Comparator<HotChunk> RANKING =
+            Comparator.comparingInt(HotChunk::playerCount).reversed()
+                    .thenComparingInt(HotChunk::weight).reversed()
+                    .thenComparing(HotChunk::shortName);
 
     private final ChunkSource source;
     private final int topN;
@@ -45,8 +52,10 @@ public final class HotSpotScanner {
         this.topN = topN;
     }
 
-    // Подсчёт сущностей в чанке дорогой, поэтому за один тик обрабатывается не больше
-    // заданного бюджета чанков, иначе скан сам станет той лагой, которую ищет.
+    /**
+     * Подсчёт сущностей в чанке дорогой, поэтому за один тик обрабатывается
+     * не больше budgetPerTick чанков, иначе скан сам станет той лагой, которую ищет.
+     */
     public ScanResult scan(int budgetPerTick) {
         if (complete) {
             return result();
@@ -64,7 +73,7 @@ public final class HotSpotScanner {
             ChunkProbe probe = source.probe(cursor);
             if (probe != null) {
                 consider(new HotChunk(probe.world(), probe.chunkX(), probe.chunkZ(),
-                        probe.entityCount(), probe.blockEntityCount()));
+                        probe.entityCount(), probe.blockEntityCount(), probe.playerCount()));
             }
             cursor++;
             scanned++;
@@ -93,12 +102,11 @@ public final class HotSpotScanner {
     }
 
     private void consider(HotChunk chunk) {
-        if (chunk.entityCount() <= 0 && chunk.blockEntityCount() <= 0) {
+        if (chunk.weight() <= 0 && chunk.playerCount() <= 0) {
             return;
         }
         found.add(chunk);
-        found.sort(Comparator.comparingInt(HotChunk::entityCount).reversed()
-                .thenComparing(Comparator.comparingInt(HotChunk::blockEntityCount).reversed()));
+        found.sort(RANKING);
         while (found.size() > topN) {
             found.remove(found.size() - 1);
         }
@@ -106,8 +114,7 @@ public final class HotSpotScanner {
 
     private ScanResult result() {
         List<HotChunk> sorted = new ArrayList<>(found);
-        sorted.sort(Comparator.comparingInt(HotChunk::entityCount).reversed()
-                .thenComparing(Comparator.comparingInt(HotChunk::blockEntityCount).reversed()));
+        sorted.sort(RANKING);
         return new ScanResult(List.copyOf(sorted), complete, scanned);
     }
 

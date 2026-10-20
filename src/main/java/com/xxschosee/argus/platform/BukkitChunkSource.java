@@ -6,6 +6,7 @@ import java.util.List;
 import org.bukkit.Chunk;
 import org.bukkit.Server;
 import org.bukkit.World;
+import org.bukkit.entity.Player;
 
 public final class BukkitChunkSource implements HotSpotScanner.ChunkSource {
 
@@ -37,8 +38,7 @@ public final class BukkitChunkSource implements HotSpotScanner.ChunkSource {
         if (index < 0 || index >= chunks.size()) {
             return null;
         }
-        Chunk chunk = chunks.get(index);
-        return new BukkitProbe(chunk);
+        return new BukkitProbe(chunks.get(index));
     }
 
     private record BukkitProbe(Chunk chunk) implements HotSpotScanner.ChunkProbe {
@@ -66,6 +66,17 @@ public final class BukkitChunkSource implements HotSpotScanner.ChunkSource {
         @Override
         public int blockEntityCount() {
             return chunk.getTileEntities(false).length;
+        }
+
+        @Override
+        public int playerCount() {
+            int players = 0;
+            for (org.bukkit.entity.Entity entity : chunk.getEntities()) {
+                if (entity instanceof Player) {
+                    players++;
+                }
+            }
+            return players;
         }
     }
 }

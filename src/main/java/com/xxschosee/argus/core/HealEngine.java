@@ -33,22 +33,28 @@ public final class HealEngine {
     public static HealEngine defaultPolicy() {
         Map<Cause, List<HealAction>> policy = new EnumMap<>(Cause.class);
 
+        // Сборка мусора тут не нужна: System.gc() ставит всех игроков на паузу,
+        // а при просадке TPS от фермы это добавит ещё один фриз.
         policy.put(Cause.TPS_DEGRADED, List.of(
-                HealAction.global(HealKind.NOTIFY_ONLY, "Сообщить администратору о падении TPS"),
-                HealAction.global(HealKind.TRIM_MEMORY, "Принудительная сборка мусора")
+                HealAction.global(HealKind.NOTIFY_ONLY, "Сообщить администратору о падении TPS")
+        ));
+        policy.put(Cause.TICK_SPIKE, List.of(
+                HealAction.global(HealKind.NOTIFY_ONLY, "Сообщить администратору о всплесках тика")
         ));
         policy.put(Cause.HIGH_MSPT, List.of(
-                HealAction.global(HealKind.NOTIFY_ONLY, "Сообщить администратору о времени тика"),
-                HealAction.global(HealKind.TRIM_MEMORY, "Принудительная сборка мусора")
+                HealAction.global(HealKind.NOTIFY_ONLY, "Сообщить администратору о времени тика")
         ));
+        // А тут сборка мусора помогает: высокая занятость кучи означает, что GC и так не успевает.
         policy.put(Cause.HEAP_PRESSURE, List.of(
                 HealAction.global(HealKind.TRIM_MEMORY, "Принудительная сборка мусора"),
                 HealAction.global(HealKind.NOTIFY_ONLY, "Сообщить администратору о памяти")
         ));
         policy.put(Cause.ENTITY_OVERLOAD, List.of(
+                new HealAction(HealKind.UNLOAD_CHUNK, "", "Выгрузить чанк с виновником"),
                 HealAction.global(HealKind.NOTIFY_ONLY, "Сообщить администратору о сущностях")
         ));
         policy.put(Cause.CHUNK_OVERLOAD, List.of(
+                new HealAction(HealKind.UNLOAD_CHUNK, "", "Выгрузить чанк с виновником"),
                 HealAction.global(HealKind.NOTIFY_ONLY, "Сообщить администратору о чанках")
         ));
 
