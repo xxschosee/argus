@@ -20,6 +20,13 @@ java {
 }
 
 tasks {
+    // В исходниках есть русские строки, поэтому кодировку задаём явно:
+    // иначе javac возьмёт кодировку локали машины, и на CI с LANG=C
+    // сборка развалится или в сообщениях появятся кракозябры.
+    withType<JavaCompile>().configureEach {
+        options.encoding = "UTF-8"
+    }
+
     processResources {
         filesMatching(listOf("plugin.yml")) {
             expand("version" to project.version)
