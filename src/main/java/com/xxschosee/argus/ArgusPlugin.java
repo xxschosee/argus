@@ -104,17 +104,22 @@ public final class ArgusPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new ChunkListener(chunkChurn), this);
 
         if (getConfig().getBoolean("jfr.enabled", true)) {
-            profiler = new PluginProfiler(getConfig().getLong("jfr.window_seconds", 300L));
+            profiler = new PluginProfiler(getConfig().getLong("jfr.window_seconds", 120L));
             PluginOwnership ownership = new PluginOwnership(
                     Arrays.asList(getServer().getPluginManager().getPlugins()));
             jfrProfiler = new JfrProfiler(ownership, profiler,
-                    getConfig().getLong("jfr.sample_period_ms", 10L),
-                    tickListener::mainThread);
+                    getConfig().getLong("jfr.sample_period_ms", 50L),
+                    tickListener::mainThread,
+                    getConfig().getBoolean("jfr.native_samples", false));
             try {
-                jfrProfiler.start();
-                long window = Math.max(5L, getConfig().getLong("jfr.window_seconds", 300L));
-                scheduler.runAsyncTimer(jfrProfiler::rotate, window * 20L, window * 20L);
-                getLogger().info("Профиль по плагинам включён, окно " + window + " с.");
+                if (getConfig().getBoolean("jfr.always_on", false)) {
+                    jfrProfiler.start();
+                    long window = Math.max(5L, getConfig().getLong("jfr.window_seconds", 120L));
+                    scheduler.runAsyncTimer(jfrProfiler::rotate, window * 20L, window * 20L);
+                    getLogger().info("Профиль по плагинам включён постоянно, окно " + window + " с.");
+                } else {
+                    getLogger().info("Профиль по плагинам снимается только во время инцидента.");
+                }
             } catch (RuntimeException e) {
                 getLogger().warning("JFR не запустился: " + e.getMessage());
                 jfrProfiler = null;
@@ -201,6 +206,35 @@ public final class ArgusPlugin extends JavaPlugin {
             pendingDiagnosis = diagnosis;
             scanner.reset();
         }
+        startProfileCollection(diagnosis);
+    }
+
+    /**
+     * Начать снимать профиль по плагинам.
+     * На здоровом сервере профилирование не идёт вообще, накладных ноль.
+     * Как только появилась проблема - включаем JFR на окно и потом отправляем отчёт.
+     */
+    private void startProfileCollection(Diagnosis diagnosis) {
+        if (jfrProfiler == null || jfrProfiler.isRunning()) {
+            return;
+        }
+        if (getConfig().getBoolean("jfr.always_on", false)) {
+            return;
+        }
+        try {
+            jfrProfiler.start();
+        } catch (RuntimeException e) {
+            getLogger().warning("Не удалось включить профиль: " + e.getMessage());
+            return;
+        }
+        long window = Math.max(5L, getConfig().getLong("jfr.incident_window_seconds", 30L));
+        scheduler.runAsyncTimer(() -> {
+            jfrProfiler.collectAndStop();
+            String owner = topOwner();
+            if (owner != null) {
+                notifier.info("Кто занимал время во время инцидента: " + owner);
+            }
+        }, window * 20L, 1L);
     }
 
     private List<HealAction> applyPlan(Diagnosis diagnosis, String target) {
