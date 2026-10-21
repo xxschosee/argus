@@ -366,7 +366,7 @@ public final class ArgusPlugin extends JavaPlugin {
             parts.add("больше всего времени занимает " + owner);
         }
         if (parts.isEmpty()) {
-            parts.add("если лаг остался - смотри spark: /timings paste");
+            parts.add("если лаг остался - сними профиль через spark: /spark profiler");
         }
         return "| " + String.join("; ", parts);
     }

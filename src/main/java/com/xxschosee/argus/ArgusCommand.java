@@ -124,7 +124,7 @@ public final class ArgusCommand implements CommandExecutor, TabCompleter {
                 ? Map.of() : plugin.profiler().distribution();
         if (distribution.isEmpty()) {
             sender.sendMessage("§7Пока нет образцов, подожди немного.");
-            sender.sendMessage("§7Точный профиль плагинов считает spark: /timings paste");
+            sender.sendMessage("§7Точный профиль плагинов снимает spark: /spark profiler");
             return;
         }
         sender.sendMessage("§6§l— кто занимает время (" + plugin.profiler().sampleCount() + " образцов)");
