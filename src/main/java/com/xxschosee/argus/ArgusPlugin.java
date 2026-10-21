@@ -64,6 +64,10 @@ public final class ArgusPlugin extends JavaPlugin {
     private long startedAtMillis;
     private long startupGraceMillis;
     private boolean graceLogged;
+    private long lastAlertAt;
+    private long lastProfileReportAt;
+    private long lastCulpritAt;
+    private long notifyCooldownMillis;
 
     @Override
     public void onEnable() {
@@ -128,6 +132,7 @@ public final class ArgusPlugin extends JavaPlugin {
 
         startedAtMillis = System.currentTimeMillis();
         startupGraceMillis = getConfig().getLong("startup_grace_seconds", 60L) * 1000L;
+        notifyCooldownMillis = getConfig().getLong("notify.cooldown_seconds", 120L) * 1000L;
 
         registerCommand();
 
@@ -190,7 +195,6 @@ public final class ArgusPlugin extends JavaPlugin {
 
         if (diagnosis.resolved()) {
             getLogger().info("Проблема ушла: " + diagnosis.cause().key());
-            notifyAsync(diagnosis, List.of());
             return;
         }
 
@@ -198,7 +202,17 @@ public final class ArgusPlugin extends JavaPlugin {
                 + " — " + diagnosis.summary());
 
         List<HealAction> performed = applyPlan(diagnosis, null);
-        notifyAsync(diagnosis, performed);
+
+        // Один инцидент поднимает сразу несколько причин: просадка TPS, время тика,
+        // перегрузка сущностями. Если слать по сообщению на каждую, админ получит
+        // десяток уведомлений подряд. Поэтому между сообщениями есть пауза.
+        long now = System.currentTimeMillis();
+        if (now - lastAlertAt < notifyCooldownMillis) {
+            getLogger().info("Уведомление о " + diagnosis.cause().key() + " пропущено: недавно было сообщение.");
+        } else {
+            lastAlertAt = now;
+            notifyAsync(diagnosis, performed);
+        }
 
         // Виновника ищем при любой проблеме: без поиска половина тревог
         // приходит с ответом "где смотреть - непонятно".
@@ -230,11 +244,40 @@ public final class ArgusPlugin extends JavaPlugin {
         long window = Math.max(5L, getConfig().getLong("jfr.incident_window_seconds", 30L));
         scheduler.runAsyncTimer(() -> {
             jfrProfiler.collectAndStop();
-            String owner = topOwner();
-            if (owner != null) {
-                notifier.info("Кто занимал время во время инцидента: " + owner);
-            }
+            reportProfile();
         }, window * 20L, 1L);
+    }
+
+    /**
+     * Отчёт по профилю.
+     *
+     * Если время тратит сам сервер, это не виноватый плагин, а работа Paper над
+     * сущностями и чанками. Такое сообщение админу ничего не даёт, поэтому в
+     * Telegram оно не идёт, а остаётся в логе.
+     */
+    private void reportProfile() {
+        Map<String, Double> distribution = profiler == null
+                ? Map.of() : profiler.distribution();
+        if (distribution.isEmpty()) {
+            return;
+        }
+        String worst = distribution.entrySet().iterator().next().getKey();
+        boolean onlyServer = distribution.entrySet().stream()
+                .allMatch(entry -> PluginProfiler.SERVER.equals(entry.getKey()));
+
+        if (onlyServer) {
+            getLogger().info("Профиль: время тратит сам сервер, плагины ни при чём ("
+                    + topOwner() + "). Смотри состав чанка выше или spark.");
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (now - lastProfileReportAt < notifyCooldownMillis) {
+            getLogger().info("Отчёт по профилю пропущен: недавно уже отправляли.");
+            return;
+        }
+        lastProfileReportAt = now;
+        getLogger().info("Отчёт по профилю отправлен: " + topOwner());
+        notifier.info("Кто занимал время во время инцидента: " + topOwner());
     }
 
     private List<HealAction> applyPlan(Diagnosis diagnosis, String target) {
@@ -295,6 +338,11 @@ public final class ArgusPlugin extends JavaPlugin {
 
         List<HealAction> performed = applyPlan(diagnosis, worst.target());
 
+        if (System.currentTimeMillis() - lastCulpritAt < notifyCooldownMillis) {
+            getLogger().info("Сообщение о виновнике пропущено: недавно было.");
+            return;
+        }
+        lastCulpritAt = System.currentTimeMillis();
         notifier.info(diagnosisText(diagnosis)
                 + " Виновник: " + worst.shortName() + " (" + worst.describe() + ")"
                 + " | " + details
@@ -344,6 +392,7 @@ public final class ArgusPlugin extends JavaPlugin {
     }
 
     private void notifyAsync(Diagnosis diagnosis, List<HealAction> performed) {
+        getLogger().info("Уведомление отправлено: " + diagnosis.cause().key());
         scheduler.runAsync(() -> notifier.notify(diagnosis, performed));
     }
 
