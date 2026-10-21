@@ -2,7 +2,9 @@ package com.xxschosee.argus.platform;
 
 import com.xxschosee.argus.core.HotSpotScanner;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.bukkit.Chunk;
 import org.bukkit.Server;
 import org.bukkit.World;
@@ -19,13 +21,24 @@ public final class BukkitChunkSource implements HotSpotScanner.ChunkSource {
 
     @Override
     public void refresh() {
-        List<Chunk> collected = new ArrayList<>();
-        for (World world : server.getWorlds()) {
-            for (Chunk chunk : world.getLoadedChunks()) {
-                collected.add(chunk);
+        // Сначала идут чанки с игроками: виновник почти всегда рядом с людьми,
+        // и так поиск заканчивается за пару тиков вместо десятков.
+        List<Chunk> ordered = new ArrayList<>();
+        Set<Chunk> seen = new HashSet<>();
+        for (Player player : server.getOnlinePlayers()) {
+            Chunk chunk = player.getChunk();
+            if (seen.add(chunk)) {
+                ordered.add(chunk);
             }
         }
-        this.chunks = List.copyOf(collected);
+        for (World world : server.getWorlds()) {
+            for (Chunk chunk : world.getLoadedChunks()) {
+                if (seen.add(chunk)) {
+                    ordered.add(chunk);
+                }
+            }
+        }
+        this.chunks = List.copyOf(ordered);
     }
 
     @Override
@@ -60,6 +73,11 @@ public final class BukkitChunkSource implements HotSpotScanner.ChunkSource {
 
         @Override
         public int entityCount() {
+            // getEntities у Paper подгружает сущности чанка, если они не лежат в памяти.
+            // Считать их силой значит самому вызывать подгрузку всех чанков мира.
+            if (!chunk.isEntitiesLoaded()) {
+                return 0;
+            }
             return chunk.getEntities().length;
         }
 

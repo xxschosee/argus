@@ -48,6 +48,7 @@ public final class JfrProfiler {
             return;
         }
         try {
+            cleanStale();
             file = Files.createTempFile("argus-jfr", ".jfr");
             recording = new Recording();
             recording.enable("jdk.ExecutionSample").withPeriod(Duration.ofMillis(samplePeriodMillis));
@@ -61,6 +62,25 @@ public final class JfrProfiler {
         } catch (IOException | RuntimeException e) {
             stop();
             throw new IllegalStateException("не удалось запустить JFR", e);
+        }
+    }
+
+    /**
+     * Убрать файлы, оставшиеся от прошлого запуска.
+     * Если сервер убили, а не остановили, onDisable не вызывается и файл остаётся.
+     */
+    private void cleanStale() {
+        try (java.util.stream.Stream<Path> files = Files.list(java.nio.file.Path.of(System.getProperty("java.io.tmpdir")))) {
+            files.filter(p -> p.getFileName().toString().startsWith("argus-jfr"))
+                    .forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException ignored) {
+                            // временный файл, ничего страшного
+                        }
+                    });
+        } catch (IOException | RuntimeException ignored) {
+            // временный каталог недоступен, это не критично
         }
     }
 
